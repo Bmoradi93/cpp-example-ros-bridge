@@ -42,6 +42,10 @@ std::string resolve_ros_path(const std::string& path) {
 RerunLoggerNode::RerunLoggerNode() {
     _rec.spawn().exit_on_failure();
 
+    // Initialize timestamp normalization
+    _time_offset_initialized = false;
+    _time_offset = 0.0;
+
     // Read additional config from yaml file
     // NOTE We're not using the ROS parameter server for this, because roscpp doesn't support
     //   reading nested data structures.
@@ -50,6 +54,15 @@ RerunLoggerNode::RerunLoggerNode() {
         ROS_INFO("Read yaml config at %s", yaml_path.c_str());
     }
     _read_yaml_config(yaml_path);
+}
+
+double RerunLoggerNode::_normalize_timestamp(const ros::Time& stamp) const {
+    if (!_time_offset_initialized) {
+        _time_offset = stamp.toSec();
+        _time_offset_initialized = true;
+        ROS_INFO("Initialized time offset to %.6f", _time_offset);
+    }
+    return stamp.toSec() - _time_offset;
 }
 
 /// Convert a topic name to its entity path.
@@ -226,7 +239,8 @@ void RerunLoggerNode::_update_tf() const {
         try {
             auto transform =
                 _tf_buffer.lookupTransform(parent->second, frame, now - ros::Duration(1.0));
-            log_transform(_rec, entity_path, transform);
+            double normalized_timestamp = _normalize_timestamp(now);
+            log_transform(_rec, entity_path, transform, normalized_timestamp);
         } catch (tf2::TransformException& ex) {
             ROS_WARN_THROTTLE(
                 1.0,
@@ -247,6 +261,7 @@ ros::Subscriber RerunLoggerNode::_create_image_subscriber(const std::string& top
         topic,
         100,
         [&, entity_path, lookup_transform](const sensor_msgs::Image::ConstPtr& msg) {
+            double normalized_timestamp = _normalize_timestamp(msg->header.stamp);
             if (!_root_frame.empty() && lookup_transform) {
                 try {
                     auto transform = _tf_buffer.lookupTransform(
@@ -255,12 +270,12 @@ ros::Subscriber RerunLoggerNode::_create_image_subscriber(const std::string& top
                         msg->header.stamp,
                         ros::Duration(0.1)
                     );
-                    log_transform(_rec, parent_entity_path(entity_path), transform);
+                    log_transform(_rec, parent_entity_path(entity_path), transform, normalized_timestamp);
                 } catch (tf2::TransformException& ex) {
                     ROS_WARN("%s", ex.what());
                 }
             }
-            log_image(_rec, entity_path, msg);
+            log_image(_rec, entity_path, msg, normalized_timestamp);
         }
     );
 }
@@ -271,7 +286,10 @@ ros::Subscriber RerunLoggerNode::_create_imu_subscriber(const std::string& topic
     return _nh.subscribe<sensor_msgs::Imu>(
         topic,
         100,
-        [&, entity_path](const sensor_msgs::Imu::ConstPtr& msg) { log_imu(_rec, entity_path, msg); }
+        [&, entity_path](const sensor_msgs::Imu::ConstPtr& msg) { 
+            double normalized_timestamp = _normalize_timestamp(msg->header.stamp);
+            log_imu(_rec, entity_path, msg, normalized_timestamp); 
+        }
     );
 }
 
@@ -282,7 +300,8 @@ ros::Subscriber RerunLoggerNode::_create_pose_stamped_subscriber(const std::stri
         topic,
         100,
         [&, entity_path](const geometry_msgs::PoseStamped::ConstPtr& msg) {
-            log_pose_stamped(_rec, entity_path, msg);
+            double normalized_timestamp = _normalize_timestamp(msg->header.stamp);
+            log_pose_stamped(_rec, entity_path, msg, normalized_timestamp);
         }
     );
 }
@@ -292,7 +311,8 @@ ros::Subscriber RerunLoggerNode::_create_tf_message_subscriber(const std::string
 
     return _nh
         .subscribe<tf2_msgs::TFMessage>(topic, 100, [&](const tf2_msgs::TFMessage::ConstPtr& msg) {
-            log_tf_message(_rec, _tf_frame_to_entity_path, msg);
+            double normalized_timestamp = _normalize_timestamp(msg->transforms[0].header.stamp);
+            log_tf_message(_rec, _tf_frame_to_entity_path, msg, normalized_timestamp);
         });
 }
 
@@ -303,7 +323,8 @@ ros::Subscriber RerunLoggerNode::_create_odometry_subscriber(const std::string& 
         topic,
         100,
         [&, entity_path](const nav_msgs::Odometry::ConstPtr& msg) {
-            log_odometry(_rec, entity_path, msg);
+            double normalized_timestamp = _normalize_timestamp(msg->header.stamp);
+            log_odometry(_rec, entity_path, msg, normalized_timestamp);
         }
     );
 }
@@ -322,7 +343,8 @@ ros::Subscriber RerunLoggerNode::_create_camera_info_subscriber(const std::strin
         topic,
         100,
         [&, entity_path](const sensor_msgs::CameraInfo::ConstPtr& msg) {
-            log_camera_info(_rec, entity_path, msg);
+            double normalized_timestamp = _normalize_timestamp(msg->header.stamp);
+            log_camera_info(_rec, entity_path, msg, normalized_timestamp);
         }
     );
 }

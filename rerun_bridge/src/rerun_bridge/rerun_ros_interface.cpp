@@ -7,9 +7,9 @@
 
 void log_imu(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const sensor_msgs::Imu::ConstPtr& msg
+    const sensor_msgs::Imu::ConstPtr& msg, double normalized_timestamp
 ) {
-    rec.set_time_seconds("timestamp", msg->header.stamp.toSec());
+    rec.set_time_seconds("timestamp", normalized_timestamp);
 
     rec.log(entity_path + "/x", rerun::Scalar(msg->linear_acceleration.x));
     rec.log(entity_path + "/y", rerun::Scalar(msg->linear_acceleration.y));
@@ -18,9 +18,9 @@ void log_imu(
 
 void log_image(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const sensor_msgs::Image::ConstPtr& msg
+    const sensor_msgs::Image::ConstPtr& msg, double normalized_timestamp
 ) {
-    rec.set_time_seconds("timestamp", msg->header.stamp.toSec());
+    rec.set_time_seconds("timestamp", normalized_timestamp);
 
     // Depth images are 32-bit float (in meters) or 16-bit uint (in millimeters)
     // See: https://ros.org/reps/rep-0118.html
@@ -48,9 +48,9 @@ void log_image(
 
 void log_pose_stamped(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const geometry_msgs::PoseStamped::ConstPtr& msg
+    const geometry_msgs::PoseStamped::ConstPtr& msg, double normalized_timestamp
 ) {
-    rec.set_time_seconds("timestamp", msg->header.stamp.toSec());
+    rec.set_time_seconds("timestamp", normalized_timestamp);
 
     rec.log(
         entity_path,
@@ -81,7 +81,7 @@ void log_pose_stamped(
 void log_tf_message(
     const rerun::RecordingStream& rec,
     const std::map<std::string, std::string>& tf_frame_to_entity_path,
-    const tf2_msgs::TFMessage::ConstPtr& msg
+    const tf2_msgs::TFMessage::ConstPtr& msg, double normalized_timestamp
 ) {
     for (const auto& transform : msg->transforms) {
         if (tf_frame_to_entity_path.find(transform.child_frame_id) ==
@@ -90,7 +90,7 @@ void log_tf_message(
             continue;
         }
 
-        rec.set_time_seconds("timestamp", transform.header.stamp.toSec());
+        rec.set_time_seconds("timestamp", normalized_timestamp);
 
         rec.log(
             tf_frame_to_entity_path.at(transform.child_frame_id),
@@ -113,9 +113,9 @@ void log_tf_message(
 
 void log_odometry(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const nav_msgs::Odometry::ConstPtr& msg
+    const nav_msgs::Odometry::ConstPtr& msg, double normalized_timestamp
 ) {
-    rec.set_time_seconds("timestamp", msg->header.stamp.toSec());
+    rec.set_time_seconds("timestamp", normalized_timestamp);
 
     rec.log(
         entity_path,
@@ -137,7 +137,7 @@ void log_odometry(
 
 void log_camera_info(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const sensor_msgs::CameraInfo::ConstPtr& msg
+    const sensor_msgs::CameraInfo::ConstPtr& msg, double normalized_timestamp
 ) {
     // Rerun uses column-major order for Mat3x3
     const std::array<float, 9> image_from_camera = {
@@ -160,9 +160,9 @@ void log_camera_info(
 
 void log_transform(
     const rerun::RecordingStream& rec, const std::string& entity_path,
-    const geometry_msgs::TransformStamped& msg
+    const geometry_msgs::TransformStamped& msg, double normalized_timestamp
 ) {
-    rec.set_time_seconds("timestamp", msg.header.stamp.toSec());
+    rec.set_time_seconds("timestamp", normalized_timestamp);
 
     rec.log(
         entity_path,

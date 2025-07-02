@@ -32,6 +32,11 @@ class RerunLoggerNode {
     float _tf_fixed_rate;
     tf2_ros::Buffer _tf_buffer;
     tf2_ros::TransformListener _tf_listener{_tf_buffer};
+    
+    // Timestamp normalization
+    mutable double _time_offset;
+    mutable bool _time_offset_initialized;
+    double _normalize_timestamp(const ros::Time& stamp) const;
 
     void _create_subscribers();
     void _update_tf() const;
